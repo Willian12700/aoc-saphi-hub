@@ -1,9 +1,26 @@
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const ffmpegPath = require('./node_modules/ffmpeg-static');
+
+let ffmpegPath = 'ffmpeg';
+try {
+  const sys = execSync('which ffmpeg 2>/dev/null || where ffmpeg 2>nul').toString().trim().split(/\r?\n/)[0];
+  if (sys && fs.existsSync(sys)) {
+    ffmpegPath = sys;
+  } else {
+    ffmpegPath = require('ffmpeg-static');
+    try { fs.chmodSync(ffmpegPath, 0o755); } catch (_) {}
+  }
+} catch (_) {
+  try {
+    ffmpegPath = require('ffmpeg-static');
+    try { fs.chmodSync(ffmpegPath, 0o755); } catch (_) {}
+  } catch (_) {
+    ffmpegPath = 'ffmpeg';
+  }
+}
 
 const CACHE_BASE = path.join(__dirname, 'hls_cache');
 if (!fs.existsSync(CACHE_BASE)) fs.mkdirSync(CACHE_BASE, { recursive: true });
@@ -14,22 +31,25 @@ function fetchHtml(url, referer) {
   return new Promise((resolve, reject) => {
     https.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
         'Referer': referer || 'https://skyflowmino.space/'
       },
-      timeout: 6000
+      timeout: 8000
     }, res => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(data));
+      res.on('end', () => resolve({ status: res.statusCode, body: data, headers: res.headers }));
     }).on('error', reject);
   });
 }
 
 async function resolveEmbedSrc(channel) {
-  const html = await fetchHtml(`https://ww0.embedtv.cc/${channel}`, 'https://skyflowmino.space/');
-  const m = html.match(/const\s+src\s*=\s*"([^"]+)"/);
-  if (!m || !m[1]) throw new Error(`Could not find src for channel ${channel}`);
+  const res = await fetchHtml(`https://ww0.embedtv.cc/${channel}`, 'https://skyflowmino.space/');
+  if (res.status !== 200) {
+    throw new Error(`embedtv returned status ${res.status} for ${channel}`);
+  }
+  const m = res.body.match(/const\s+src\s*=\s*"([^"]+)"/);
+  if (!m || !m[1]) throw new Error(`Could not find src in embedtv page for ${channel} (len=${res.body.length})`);
   return m[1];
 }
 
@@ -47,9 +67,11 @@ async function getOrStartStream(channel) {
   fs.mkdirSync(channelDir, { recursive: true });
 
   const srcUrl = await resolveEmbedSrc(channel);
-  console.log(`[HLS-REMUX] Starting stream for ${channel} from ${srcUrl}`);
+  console.log(`[HLS-REMUX] Starting stream for ${channel} from ${srcUrl} using ffmpeg: ${ffmpegPath}`);
 
   const playlistFile = path.join(channelDir, 'live.m3u8');
+  let lastStderr = '';
+
   const ff = spawn(ffmpegPath, [
     '-headers', 'Referer: https://ww0.embedtv.cc/\r\n',
     '-i', srcUrl,
@@ -69,8 +91,14 @@ async function getOrStartStream(channel) {
     dir: channelDir,
     process: ff,
     alive: true,
-    lastAccess: Date.now()
+    lastAccess: Date.now(),
+    getStderr: () => lastStderr
   };
+
+  ff.on('error', (err) => {
+    console.error(`[HLS-REMUX] Failed to spawn ffmpeg:`, err);
+    lastStderr += '\nSpawn err: ' + err.message;
+  });
 
   ff.on('exit', (code) => {
     console.log(`[HLS-REMUX] Stream ${channel} exited with code ${code}`);
@@ -79,14 +107,14 @@ async function getOrStartStream(channel) {
   });
 
   ff.stderr.on('data', d => {
-    // console.log(`[FFMPEG ${channel}]`, d.toString().slice(0, 100));
+    lastStderr = (lastStderr + d.toString()).slice(-2000);
   });
 
   activeStreams.set(channel, stream);
 
   // Wait until live.m3u8 is written and has at least one segment
   const startTime = Date.now();
-  while (Date.now() - startTime < 6000) {
+  while (Date.now() - startTime < 10000) {
     if (fs.existsSync(playlistFile)) {
       const content = fs.readFileSync(playlistFile, 'utf8');
       if (content.includes('.ts')) {
@@ -94,10 +122,13 @@ async function getOrStartStream(channel) {
         return stream;
       }
     }
-    await new Promise(r => setTimeout(r, 100));
+    if (!stream.alive) {
+      throw new Error(`FFmpeg exited prematurely for ${channel}. Stderr: ${lastStderr}`);
+    }
+    await new Promise(r => setTimeout(r, 150));
   }
 
-  throw new Error(`Timeout waiting for ${channel} stream initialization`);
+  throw new Error(`Timeout waiting for ${channel} stream initialization. Stderr: ${lastStderr}`);
 }
 
 // Cleanup inactive streams every 15s
@@ -115,8 +146,6 @@ setInterval(() => {
 }, 15000);
 
 async function handleHlsRequest(req, res, pathname) {
-  // /hls/:channel/live.m3u8 or /hls/:channel.m3u8
-  // /hls/:channel/liveX.ts
   const parts = pathname.replace(/^\/hls\//, '').split('/');
   if (parts.length === 0) return false;
 
@@ -135,7 +164,6 @@ async function handleHlsRequest(req, res, pathname) {
 
     if (file.endsWith('.m3u8')) {
       const content = fs.readFileSync(filePath, 'utf8');
-      // Rewrite segments relative to /hls/:channel/
       res.writeHead(200, {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Access-Control-Allow-Origin': '*',
@@ -152,7 +180,10 @@ async function handleHlsRequest(req, res, pathname) {
     }
   } catch (e) {
     console.error(`[HLS-REMUX] Error for ${pathname}:`, e.message);
-    res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });
+    res.writeHead(500, {
+      'Content-Type': 'text/plain',
+      'Access-Control-Allow-Origin': '*'
+    });
     return res.end(e.message);
   }
 
