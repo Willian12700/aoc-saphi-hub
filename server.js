@@ -1175,6 +1175,29 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/test-geo') {
+    try {
+      const page = await fetchUrl('https://ww0.embedtv.cc/premiere', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          'Referer': 'https://skyflowmino.space/',
+          'X-Forwarded-For': '187.19.253.102',
+          'X-Real-IP': '187.19.253.102'
+        }
+      });
+      const m = page.body.match(/const\s+src\s*=\s*"([^"]+)"/);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        status: page.status,
+        src: m ? m[1] : null,
+        bodyLen: page.body.length
+      }));
+    } catch (e) {
+      res.writeHead(500);
+      return res.end(e.message);
+    }
+  }
+
   if (handlePanelRoutes(req, res, urlObj)) {
     return;
   }
