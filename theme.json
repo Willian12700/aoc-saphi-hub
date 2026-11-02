@@ -1,0 +1,20 @@
+{
+  "willian": {
+    "activeWallpaper": "uploaded",
+    "wallpaperUrl": "/wallpapers/active_willian.jpg",
+    "wallpaperOpacity": 0.41,
+    "accentColor": "0xF1F5F9FF",
+    "accentHex": "#F1F5F9",
+    "themeName": "Cyberpunk Purple",
+    "updatedAt": 1793653342432
+  },
+  "mae": {
+    "activeWallpaper": "uploaded",
+    "wallpaperUrl": "/wallpapers/active_mae.jpg",
+    "wallpaperOpacity": 0.44,
+    "accentColor": "0xE50914FF",
+    "accentHex": "#E50914",
+    "themeName": "Deep Nebula Cyan",
+    "updatedAt": 1793653921909
+  }
+}

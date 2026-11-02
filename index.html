@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AOC Smart Hub Turbo - Twitch, Kick & Futebol</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background-color: #0e0e10;
+      color: #efeff1;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Top Header */
+    header {
+      height: 64px;
+      background: #18181b;
+      border-bottom: 3px solid #9146ff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .badge-t {
+      background: #9146ff;
+      color: #fff;
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      font-weight: 900;
+    }
+    .badge-k {
+      background: #53fc18;
+      color: #09090b;
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      font-weight: 900;
+    }
+    . badge-f {
+      background: #00e676;
+      color: #09090b;
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      font-weight: 900;
+    }
+    #statusText {
+      font-size: 15px;
+      color: #adadb8;
+    }
+    /* Layout */
+    .main-layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    /* Left Sidebar (TV D-Pad friendly) */
+    .sidebar {
+      width: 290px;
+      background: #141417;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-right: 1px solid #26262c;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .sidebar-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #9146ff;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      letter-spacing: 1px;
+    }
+    .nav-btn {
+      background: #1f1f23;
+      color: #efeff1;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 13px 14px;
+      font-size: 16px;
+      font-weight: 700;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      outline: none;
+    }
+    .nav-btn:focus, .nav-btn.focused {
+      background: #9146ff;
+      color: #ffffff;
+      border-color: #ffffff;
+      transform: scale(1.02);
+    }
+    .nav-btn.kick-btn:focus, .nav-btn.kick-btn.focused {
+      background: #53fc18;
+      color: #09090b;
+      border-color: #ffffff;
+    }
+    .nav-btn.fut-btn:focus, .nav-btn.fut-btn.focused {
+      background: #00e676;
+      color: #09090b;
+      border-color: #ffffff;
+    }
+    /* Content Area */
+    .content-area {
+      flex: 1;
+      padding: 18px 22px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+    /* Search Box */
+    .search-bar {
+      display: none;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .search-bar.visible {
+      display: flex;
+    }
+    .search-input {
+      flex: 1;
+      background: #18181b;
+      border: 2px solid #3a3a40;
+      color: #fff;
+      font-size: 18px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      outline: none;
+    }
+    .search-input:focus {
+      border-color: #9146ff;
+    }
+    .action-btn {
+      background: #9146ff;
+      color: #fff;
+      border: 2px solid transparent;
+      padding: 12px 22px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .action-btn:focus {
+      border-color: #fff;
+      background: #a970ff;
+    }
+    /* Grid of Channels */
+    .channels-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      padding-bottom: 40px;
+    }
+    .channel-card {
+      background: #18181b;
+      border: 3px solid transparent;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      outline: none;
+    }
+    .channel-card:focus, .channel-card.focused {
+      border-color: #53fc18;
+      background: #26262c;
+      transform: translateY(-3px);
+    }
+    .thumb-wrap {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%;
+      background: #09090b;
+    }
+    .thumb-wrap img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .live-pill {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #eb0400;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .live-pill.kick {
+      background: #53fc18;
+      color: #09090b;
+    }
+    .live-pill.fut {
+      background: #00e676;
+      color: #09090b;
+    }
+    .viewers-pill {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(0,0,0,0.82);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .card-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .card-name {
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-game {
+      font-size: 13px;
+      font-weight: 700;
+      color: #bf94ff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-title {
+      font-size: 12px;
+      color: #adadb8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* Fullscreen Player Overlay */
+    #playerOverlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 9999;
+      display: none;
+      flex-direction: column;
+    }
+    #playerOverlay.active {
+      display: flex;
+    }
+    .player-top-bar {
+      height: 52px;
+      background: rgba(14, 14, 16, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid #26262c;
+    }
+    .player-container {
+      flex: 1;
+      width: 100%;
+      height: calc(100vh - 52px);
+      position: relative;
+      background: #000;
+    }
+    #hlsVideo, #embedIframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #000;
+    }
+    /* Roku Remote Control Panel inside Hub */
+    #rokuPanel {
+      display: none;
+      background: #18181b;
+      padding: 18px;
+      border-radius: 10px;
+      border: 1px solid #2e2e36;
+      flex-direction: column;
+      gap: 14px;
+    }
+    #rokuPanel.visible {
+      display: flex;
+    }
+    .roku-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    @media (max-width: 768px) {
+      body { overflow-y: auto; height: auto; }
+      .main-layout { flex-direction: column; overflow: visible; }
+      .sidebar { width: 100%; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid #26262c; }
+      .sidebar-title { display: none; }
+      .nav-btn { white-space: nowrap; padding: 10px 14px; font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header id="mainHeader">
+    <div class="brand">
+      <span class="badge-t">T</span>
+      <span class="badge-k">K</span>
+      <span>AOC SMART HUB TURBO</span>
+    </div>
+    <div id="statusText">Use as setas do controle remoto e OK para assistir</div>
+  </header>
+
+  <div class="main-layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-title">Menu da TV</div>
+      <button class="nav-btn" tabindex="1" onclick="loadTwitchTop('PT', 'TWITCH: TOP BRASIL')">🟣 Twitch: Top Brasil</button>
+      <button class="nav-btn kick-btn" tabindex="2" onclick="loadKickTop()">🟢 Kick: Top Brasil</button>
+      <button class="nav-btn fut-btn" tabindex="3" onclick="loadPartidas()">⚽ Partidas de Hoje</button>
+      <button class="nav-btn kick-btn" tabindex="4" onclick="openSearch('kick')">🔍 Buscar na Kick</button>
+      <button class="nav-btn" tabindex="5" onclick="openSearch('twitch')">🔍 Buscar na Twitch</button>
+      <button class="nav-btn" tabindex="6" onclick="loadTwitchTop('', 'TWITCH: TOP GLOBAL')">🌎 Twitch: Top Global</button>
+      <button class="nav-btn" tabindex="7" onclick="loadFavorites()">⭐ Meus Favoritos</button>
+      <button class="nav-btn" tabindex="8" onclick="openRokuPanel()">📱 Controlar TVs Roku</button>
+    </nav>
+
+    <main class="content-area">
+      <div class="section-header">
+        <div class="section-title" id="sectionTitle">TWITCH: TOP BRASIL</div>
+        <button class="action-btn" onclick="refreshCurrent()">🔄 Atualizar</button>
+      </div>
+
+      <!-- Search Box -->
+      <div class="search-bar" id="searchBar">
+        <input type="text" id="searchInput" class="search-input" placeholder="Digite o nome do streamer ou canal..." />
+        <button class="action-btn" onclick="executeSearch()">Buscar / Abrir</button>
+        <button class="action-btn" style="background:#3a3a40" onclick="addInputToFavorites()">⭐ Salvar Favorito</button>
+      </div>
+
+      <!-- Roku Remote Control Panel -->
+      <div id="rokuPanel">
+        <h3>Controle das TVs Roku da Casa (Quarto Mãe e Quarto Willian)</h3>
+        <div class="roku-row">
+          <button class="action-btn" onclick="selectRoku('192.168.1.8')">📺 TV Quarto Willian (192.168.1.8)</button>
+          <button class="action-btn" onclick="selectRoku('192.168.1.11')">📺 TV Quarto Mãe (192.168.1.11)</button>
+          <span id="selectedRokuLabel" style="font-weight:bold;color:#53fc18">Selecionada: 192.168.1.8</span>
+        </div>
+        <div class="roku-row">
+          <button class="action-btn" onclick="rokuKey('Home')">🏠 Home</button>
+          <button class="action-btn" onclick="rokuKey('Up')">⬆️ Cima</button>
+          <button class="action-btn" onclick="rokuKey('Down')">⬇️ Baixo</button>
+          <button class="action-btn" onclick="rokuKey('Left')">⬅️ Esq</button>
+          <button class="action-btn" onclick="rokuKey('Right')">➡️ Dir</button>
+          <button class="action-btn" style="background:#53fc18;color:#000" onclick="rokuKey('Select')">✅ OK</button>
+          <button class="action-btn" onclick="rokuKey('Back')">🔙 Voltar</button>
+          <button class="action-btn" onclick="rokuKey('Info')">✳️ Favoritar (*)</button>
+        </div>
+        <div class="roku-row">
+          <button class="action-btn" onclick="rokuKey('VolumeUp')">🔊 Vol +</button>
+          <button class="action-btn" onclick="rokuKey('VolumeDown')">🔉 Vol -</button>
+          <button class="action-btn" onclick="rokuKey('VolumeMute')">🔇 Mudo</button>
+          <button class="action-btn" style="background:#eb0400" onclick="rokuKey('PowerOff')">⏻ Desligar TV</button>
+          <button class="action-btn" style="background:#9146ff" onclick="rokuLaunchDev()">🚀 Abrir App Twitch+Kick na Roku</button>
+        </div>
+      </div>
+
+      <!-- Channels Grid -->
+      <div class="channels-grid" id="channelsGrid"></div>
+    </main>
+  </div>
+
+  <!-- Fullscreen Player -->
+  <div id="playerOverlay">
+    <div class="player-top-bar">
+      <div id="playingTitle" style="font-weight:800;font-size:16px">Reproduzindo...</div>
+      <div style="display:flex;gap:10px">
+        <button class="action-btn" id="switchModeBtn" style="padding:6px 14px;font-size:14px" onclick="switchPlayerMode()">Alternar Modo Player</button>
+        <button class="action-btn" id="closePlayerBtn" style="background:#eb0400;padding:6px 16px;font-size:14px" onclick="closePlayer()">✖ Fechar (Voltar)</button>
+      </div>
+    </div>
+    <div class="player-container">
+      <video id="hlsVideo" controls autoplay playsinline style="display:none"></video>
+      <iframe id="embedIframe" allow="autoplay; fullscreen" allowfullscreen style="display:none"></iframe>
+    </div>
+  </div>
+
+  <script>
+    const TWITCH_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+    let currentChannels = [];
+    let currentSearchPlatform = "twitch";
+    let currentPlaying = null;
+    let useEmbedMode = false;
+    let hlsInstance = null;
+    let selectedRokuIp = "192.168.1.8";
+
+    function getFavorites() {
+      try {
+        const raw = localStorage.getItem("aoc_favs");
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return [
+        { platform: "twitch", login: "gaules", displayName: "Gaules" },
+        { platform: "twitch", login: "alanzoka", displayName: "alanzoka" },
+        { platform: "twitch", login: "loud_coringa", displayName: "loud_coringa" },
+        { platform: "kick", login: "coringa", displayName: "coringa" },
+        { platform: "kick", login: "cerol", displayName: "cerol" },
+        { platform: "kick", login: "paulinholokobr", displayName: "paulinholokobr" }
+      ];
+    }
+
+    function saveFavoritesList(list) {
+      try { localStorage.setItem("aoc_favs", JSON.stringify(list)); } catch (e) {}
+    }
+
+    function setStatus(msg) {
+      document.getElementById("statusText").textContent = msg;
+    }
+
+    async function postTwitchGql(query) {
+      try {
+        const res = await fetch("/api/twitch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query })
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+      const res = await fetch("https://gql.twitch.tv/gql", {
+        method: "POST",
+        headers: {
+          "Client-ID": TWITCH_CLIENT_ID,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ query })
+      });
+      return await res.json();
+    }
+
+    async function loadTwitchTop(lang, title) {
+      document.getElementById("searchBar").classList.remove("visible");
+      document.getElementById("rokuPanel").classList.remove("visible");
+      document.getElementById("sectionTitle").textContent = title;
+      document.getElementById("mainHeader").style.borderBottomColor = "#9146ff";
+      setStatus("Carregando streams ao vivo da Twitch...");
+
+      const langOpt = lang ? `, options: {broadcasterLanguages: [${lang}]}` : "";
+      const q = `{ streams(first: 24${langOpt}) { edges { node { broadcaster { login displayName } title viewersCount game { name } previewImageURL(width: 440, height: 248) } } } }`;
+      try {
+        const json = await postTwitchGql(q);
+        const edges = (json && json.data && json.data.streams && json.data.streams.edges) || [];
+        currentChannels = edges.map(e => {
+          const n = e.node;
+          return {
+            platform: "twitch",
+            login: n.broadcaster.login,
+            displayName: n.broadcaster.displayName,
+            title: n.title || "",
+            game: (n.game && n.game.name) || "Ao Vivo",
+            viewers: n.viewersCount || 0,
+            thumb: n.previewImageURL || "",
+            playbackUrl: ""
+          };
+        });
+        renderChannels();
+        setStatus(currentChannels.length + " canais da Twitch carregados");
+      } catch (err) {
+        setStatus("Erro ao carregar Twitch: " + err.message);
+      }
+    }
+
+    async function loadKickTop() {
+      document.getElementById("searchBar").classList.remove("visible");
+      document.getElementById("rokuPanel").classList.remove("visible");
+      document.getElementById("sectionTitle").textContent = "KICK: TOP BRASIL (AO VIVO)";
+      document.getElementById("mainHeader").style.borderBottomColor = "#53fc18";
+      setStatus("Carregando lives da Kick...");
+
+      try {
+        let res = await fetch("/api/kick/top").catch(() => null);
+        if (!res || !res.ok) res = await fetch("https://kick.com/stream/featured-livestreams/pt");
+        const json = await res.json();
+        const data = (json && json.data) || [];
+        currentChannels = data.map(st => ({
+          platform: "kick",
+          login: st.channel ? st.channel.slug : "",
+          displayName: (st.channel && st.channel.user && st.channel.user.username) || (st.channel && st.channel.slug) || "Kick",
+          title: st.session_title || "",
+          game: (st.categories && st.categories[0] && st.categories[0].name) || "Kick Live",
+          viewers: st.viewer_count || 0,
+          thumb: (st.thumbnail && st.thumbnail.src) || "",
+          playbackUrl: (st.channel && st.channel.playback_url) || ""
+        }));
+        renderChannels();
+        setStatus(currentChannels.length + " canais da Kick carregados");
+      } catch (err) {
+        setStatus("Use a busca da Kick para abrir um canal diretamente.");
+        openSearch("kick");
+      }
+    }
+
+    async function loadPartidas() {
+      document.getElementById("searchBar").classList.remove("visible");
+      document.getElementById("rokuPanel").classList.remove("visible");
+      document.getElementById("sectionTitle").textContent = "⚽ PARTIDAS DE HOJE & ESPORTES AO VIVO";
+      document.getElementById("mainHeader").style.borderBottomColor = "#00e676";
+      setStatus("Buscando transmissões do Partidas de Hoje e Esportes...");
+
+      let items = [];
+      try {
+        let r = await fetch("/api/partidas").catch(() => null);
+        if (!r || !r.ok) r = await fetch("https://minodobola.xyz/BIBO_CONF26/PDH26.json");
+        const pdh = await r.json();
+        if (pdh && Array.isArray(pdh.channels)) {
+          pdh.channels.forEach(ch => {
+            for (let i = 1; i <= 9; i++) {
+              const src = ch["source" + i];
+              if (src) {
+                items.push({
+                  platform: "partidas",
+                  login: src,
+                  displayName: ch.title + (i > 1 ? ` (Opção ${i})` : ""),
+                  title: ch.category || "Futebol Ao Vivo",
+                  game: "Partidas de Hoje",
+                  viewers: 1000,
+                  thumb: ch.image || "",
+                  playbackUrl: src
+                });
+              }
+            }
+          });
+        }
+      } catch (e) {}
+
+      try {
+        const q = `{ searchFor(userQuery: "futebol ao vivo", platform: "web") { channels { edges { item { ... on User { login displayName broadcastSettings { title } stream { viewersCount game { name } previewImageURL(width: 440, height: 248) } } } } } } }`;
+        const json = await postTwitchGql(q);
+        const edges = (json && json.data && json.data.searchFor && json.data.searchFor.channels && json.data.searchFor.channels.edges) || [];
+        edges.forEach(e => {
+          const u = e.item;
+          if (u && u.login && u.stream) {
+            items.push({
+              platform: "twitch",
+              login: u.login,
+              displayName: u.displayName || u.login,
+              title: (u.broadcastSettings && u.broadcastSettings.title) || "",
+              game: (u.stream.game && u.stream.game.name) || "Esportes",
+              viewers: u.stream.viewersCount || 0,
+              thumb: u.stream.previewImageURL || "",
+              playbackUrl: ""
+            });
+          }
+        });
+      } catch (e) {}
+
+      currentChannels = items;
+      renderChannels();
+      setStatus(currentChannels.length + " transmissões encontradas");
+    }
+
+    function openSearch(platform) {
+      currentSearchPlatform = platform;
+      document.getElementById("rokuPanel").classList.remove("visible");
+      const bar = document.getElementById("searchBar");
+      bar.classList.add("visible");
+      const inp = document.getElementById("searchInput");
+      inp.placeholder = platform === "kick"
+        ? "Digite o canal na Kick (ex: coringa, cerol, nobru)..."
+        : "Digite o canal na Twitch (ex: gaules, alanzoka)...";
+      document.getElementById("sectionTitle").textContent =
+        platform === "kick" ? "BUSCAR / ABRIR CANAL NA KICK" : "BUSCAR CANAL NA TWITCH";
+      inp.focus();
+    }
+
+    async function executeSearch() {
+      const val = document.getElementById("searchInput").value.trim();
+      if (!val) return;
+      if (currentSearchPlatform === "kick") {
+        const slug = val.toLowerCase().replace(/\s+/g, "-");
+        setStatus("Abrindo canal da Kick: " + slug);
+        try {
+          let r = await fetch("/api/kick/channel/" + slug).catch(() => null);
+          if (!r || !r.ok) r = await fetch("https://kick.com/api/v1/channels/" + slug);
+          const d = await r.json();
+          if (d && d.playback_url) {
+            playChannel({
+              platform: "kick",
+              login: slug,
+              displayName: (d.user && d.user.username) || slug,
+              playbackUrl: d.playback_url
+            });
+            return;
+          }
+        } catch (e) {}
+        playChannel({ platform: "kick", login: slug, displayName: slug, playbackUrl: "" });
+      } else {
+        setStatus("Buscando na Twitch: " + val);
+        const q = `{ user(login: "${val.toLowerCase()}") { login displayName broadcastSettings { title } stream { viewersCount game { name } previewImageURL(width: 440, height: 248) } } searchFor(userQuery: "${val}", platform: "web") { channels { edges { item { ... on User { login displayName broadcastSettings { title } stream { viewersCount game { name } previewImageURL(width: 440, height: 248) } } } } } } }`;
+        const json = await postTwitchGql(q);
+        const list = [];
+        const seen = {};
+        const addU = (u) => {
+          if (!u || !u.login || seen[u.login]) return;
+          seen[u.login] = true;
+          list.push({
+            platform: "twitch",
+            login: u.login,
+            displayName: u.displayName || u.login,
+            title: (u.broadcastSettings && u.broadcastSettings.title) || "",
+            game: (u.stream && u.stream.game && u.stream.game.name) || (u.stream ? "Ao Vivo" : "Offline"),
+            viewers: (u.stream && u.stream.viewersCount) || 0,
+            thumb: (u.stream && u.stream.previewImageURL) || "",
+            playbackUrl: ""
+          });
+        };
+        if (json && json.data) {
+          if (json.data.user) addU(json.data.user);
+          if (json.data.searchFor && json.data.searchFor.channels && json.data.searchFor.channels.edges) {
+            json.data.searchFor.channels.edges.forEach(e => addU(e.item));
+          }
+        }
+        currentChannels = list;
+        renderChannels();
+      }
+    }
+
+    function addInputToFavorites() {
+      const val = document.getElementById("searchInput").value.trim().toLowerCase();
+      if (!val) return;
+      const favs = getFavorites();
+      if (!favs.some(f => f.login === val && f.platform === currentSearchPlatform)) {
+        favs.push({ platform: currentSearchPlatform, login: val, displayName: val });
+        saveFavoritesList(favs);
+      }
+      setStatus("Canal salvo nos Favoritos: " + val);
+    }
+
+    function loadFavorites() {
+      document.getElementById("searchBar").classList.remove("visible");
+      document.getElementById("rokuPanel").classList.remove("visible");
+      document.getElementById("sectionTitle").textContent = "⭐ MEUS CANAIS FAVORITOS";
+      const favs = getFavorites();
+      currentChannels = favs.map(f => ({
+        platform: f.platform,
+        login: f.login,
+        displayName: `[${f.platform.toUpperCase()}] ${f.displayName}`,
+        title: "Clique em OK para abrir a transmissão ao vivo",
+        game: f.platform === "kick" ? "Kick" : "Twitch",
+        viewers: 0,
+        thumb: "",
+        playbackUrl: ""
+      }));
+      renderChannels();
+    }
+
+    function renderChannels() {
+      const grid = document.getElementById("channelsGrid");
+      grid.innerHTML = "";
+      currentChannels.forEach((ch, i) => {
+        const card = document.createElement("button");
+        card.className = "channel-card";
+        card.tabIndex = 20 + i;
+        card.onclick = () => playChannel(ch);
+
+        const pillClass = ch.platform === "kick" ? "kick" : (ch.platform === "partidas" ? "fut" : "");
+        const pillText = ch.platform === "kick" ? "KICK" : (ch.platform === "partidas" ? "FUTEBOL" : "TWITCH");
+        const vText = ch.viewers > 0 ? `${ch.viewers} assistindo` : "Abrir Canal";
+
+        card.innerHTML = `
+          <div class="thumb-wrap">
+            ${ch.thumb ? `<img src="${ch.thumb}" alt="" loading="lazy" />` : ""}
+            <span class="live-pill ${pillClass}">${pillText}</span>
+            <span class="viewers-pill">${vText}</span>
+          </div>
+          <div class="card-body">
+            <div class="card-name">${ch.displayName}</div>
+            <div class="card-game">${ch.game}</div>
+            <div class="card-title">${ch.title}</div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function playChannel(ch) {
+      currentPlaying = ch;
+      document.getElementById("playerOverlay").classList.add("active");
+      document.getElementById("playingTitle").textContent = `${ch.displayName} (${ch.platform.toUpperCase()})`;
+      document.getElementById("closePlayerBtn").focus();
+
+      if (ch.platform === "partidas" && ch.playbackUrl) {
+        startHlsPlayback(ch.playbackUrl);
+        return;
+      }
+
+      if (useEmbedMode) {
+        startEmbedPlayback(ch);
+        return;
+      }
+
+      if (ch.platform === "kick") {
+        if (ch.playbackUrl) {
+          startHlsPlayback(ch.playbackUrl);
+          return;
+        }
+        try {
+          let r = await fetch("/api/kick/channel/" + ch.login).catch(() => null);
+          if (!r || !r.ok) r = await fetch("https://kick.com/api/v1/channels/" + ch.login);
+          const d = await r.json();
+          if (d && d.playback_url) {
+            startHlsPlayback(d.playback_url);
+            return;
+          }
+        } catch (e) {}
+        startEmbedPlayback(ch);
+      } else if (ch.platform === "twitch") {
+        try {
+          const q = `{ streamPlaybackAccessToken(channelName: "${ch.login}", params: {platform: "web", playerBackend: "mediaplayer", playerType: "site"}) { value signature } }`;
+          const res = await postTwitchGql(q);
+          const tok = res && res.data && res.data.streamPlaybackAccessToken;
+          if (tok && tok.value && tok.signature) {
+            const hlsUrl = `https://usher.ttvnw.net/api/channel/hls/${ch.login}.m3u8?client_id=${TWITCH_CLIENT_ID}&token=${encodeURIComponent(tok.value)}&sig=${tok.signature}&allow_source=true&allow_audio_only=true`;
+            startHlsPlayback(hlsUrl);
+            return;
+          }
+        } catch (e) {}
+        startEmbedPlayback(ch);
+      }
+    }
+
+    function startHlsPlayback(url) {
+      const video = document.getElementById("hlsVideo");
+      const iframe = document.getElementById("embedIframe");
+      iframe.style.display = "none";
+      iframe.src = "about:blank";
+      video.style.display = "block";
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = url;
+        video.play().catch(() => {});
+      } else if (window.Hls && Hls.isSupported()) {
+        hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(video);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        hlsInstance.on(Hls.Events.ERROR, (ev, data) => {
+          if (data.fatal && currentPlaying) {
+            startEmbedPlayback(currentPlaying);
+          }
+        });
+      } else {
+        startEmbedPlayback(currentPlaying);
+      }
+    }
+
+    function startEmbedPlayback(ch) {
+      const video = document.getElementById("hlsVideo");
+      const iframe = document.getElementById("embedIframe");
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+      video.pause();
+      video.style.display = "none";
+      iframe.style.display = "block";
+
+      const host = window.location.hostname || "localhost";
+      if (ch.platform === "kick") {
+        iframe.src = `https://player.kick.com/${ch.login}?autoplay=true`;
+      } else if (ch.platform === "twitch") {
+        iframe.src = `https://player.twitch.tv/?channel=${ch.login}&parent=${host}&autoplay=true`;
+      } else {
+        iframe.src = ch.playbackUrl || "";
+      }
+    }
+
+    function switchPlayerMode() {
+      useEmbedMode = !useEmbedMode;
+      if (currentPlaying) playChannel(currentPlaying);
+    }
+
+    function closePlayer() {
+      const video = document.getElementById("hlsVideo");
+      const iframe = document.getElementById("embedIframe");
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+      video.pause();
+      video.src = "";
+      iframe.src = "about:blank";
+      document.getElementById("playerOverlay").classList.remove("active");
+    }
+
+    function refreshCurrent() {
+      loadTwitchTop("PT", "TWITCH: TOP BRASIL");
+    }
+
+    /* Roku Remote Functions */
+    function openRokuPanel() {
+      document.getElementById("rokuPanel").classList.toggle("visible");
+    }
+    function selectRoku(ip) {
+      selectedRokuIp = ip;
+      document.getElementById("selectedRokuLabel").textContent = "Selecionada: " + ip;
+    }
+    function rokuKey(key) {
+      fetch("/api/roku", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: selectedRokuIp, endpoint: "keypress/" + key, usbIp: "10.20.147.182" })
+      }).catch(() => {});
+      fetch(`http://${selectedRokuIp}:8060/keypress/${key}`, { method: "POST", mode: "no-cors" }).catch(() => {});
+    }
+    function rokuLaunchDev() {
+      fetch("/api/roku", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: selectedRokuIp, endpoint: "launch/dev", usbIp: "10.20.147.182" })
+      }).catch(() => {});
+      fetch(`http://${selectedRokuIp}:8060/launch/dev`, { method: "POST", mode: "no-cors" }).catch(() => {});
+    }
+
+    /* TV Remote Back / Escape Key Handling */
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" || e.key === "Backspace" || e.keyCode === 461 || e.keyCode === 10009) {
+        if (document.getElementById("playerOverlay").classList.contains("active")) {
+          e.preventDefault();
+          closePlayer();
+        }
+      }
+    });
+
+    loadTwitchTop("PT", "TWITCH: TOP BRASIL");
+  </script>
+</body>
+</html>

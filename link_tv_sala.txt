@@ -1,0 +1,6 @@
+ENDEREÇO PARA ABRIR NO NAVEGADOR DA TV DA SALA (E NO CELULAR):
+
+https://timer-management-immediate-kodak.trycloudflare.com
+
+Local (no próprio PC):
+http://localhost:8080
