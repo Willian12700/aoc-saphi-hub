@@ -53,7 +53,7 @@ async function resolveEmbedSrc(channel) {
   return m[1];
 }
 
-async function getOrStartStream(channel) {
+async function getOrStartStream(channel, overrideSrc = null) {
   let stream = activeStreams.get(channel);
   if (stream && stream.alive) {
     stream.lastAccess = Date.now();
@@ -66,7 +66,7 @@ async function getOrStartStream(channel) {
   }
   fs.mkdirSync(channelDir, { recursive: true });
 
-  const srcUrl = await resolveEmbedSrc(channel);
+  const srcUrl = overrideSrc || await resolveEmbedSrc(channel);
   console.log(`[HLS-REMUX] Starting stream for ${channel} from ${srcUrl} using ffmpeg: ${ffmpegPath}`);
 
   const playlistFile = path.join(channelDir, 'live.m3u8');
@@ -150,10 +150,12 @@ async function handleHlsRequest(req, res, pathname) {
   if (parts.length === 0) return false;
 
   let channel = parts[0].replace(/\.m3u8$/, '');
-  const file = parts.length > 1 ? parts[1] : 'live.m3u8';
+  const file = parts.length > 1 ? parts[1].split('?')[0] : 'live.m3u8';
+  const urlObj = new URL(req.url, 'http://localhost');
+  const overrideSrc = urlObj.searchParams.get('src');
 
   try {
-    const stream = await getOrStartStream(channel);
+    const stream = await getOrStartStream(channel, overrideSrc);
     stream.lastAccess = Date.now();
 
     const filePath = path.join(stream.dir, file);

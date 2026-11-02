@@ -1175,6 +1175,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/api/test-src') {
+    const target = urlObj.searchParams.get('url');
+    try {
+      const page = await fetchUrl(target, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          'Referer': 'https://ww0.embedtv.cc/'
+        }
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ status: page.status, len: page.body.length, preview: page.body.slice(0, 100) }));
+    } catch (e) {
+      res.writeHead(500);
+      return res.end(e.message);
+    }
+  }
+
   if (pathname === '/api/test-geo') {
     try {
       const page = await fetchUrl('https://ww0.embedtv.cc/premiere', {
