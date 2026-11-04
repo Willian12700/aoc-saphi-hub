@@ -106,6 +106,11 @@ async function resolveEmbedSrc(channel) {
   const retryStp = await resolveStreamtp(ch);
   if (retryStp) return retryStp;
 
+  // 5. Globo regional & sports fallback
+  if (['globorn', 'globo-rn', 'intertv', 'cabugi', 'globorj', 'globosp', 'globo'].includes(ch)) {
+    return 'https://amg00716-globo-amg00716c1-tcl-br-9495.playouts.now.amagi.tv/playlist.m3u8';
+  }
+
   throw new Error(`Could not resolve active stream source for ${ch}`);
 }
 
@@ -170,7 +175,7 @@ async function getOrStartStream(channel, overrideSrc = null) {
 
   // Wait until live.m3u8 is written and has at least one segment
   const startTime = Date.now();
-  while (Date.now() - startTime < 10000) {
+  while (Date.now() - startTime < 25000) {
     if (fs.existsSync(playlistFile)) {
       const content = fs.readFileSync(playlistFile, 'utf8');
       if (content.includes('.ts')) {
@@ -191,7 +196,7 @@ async function getOrStartStream(channel, overrideSrc = null) {
 setInterval(() => {
   const now = Date.now();
   for (const [channel, stream] of activeStreams.entries()) {
-    if (now - stream.lastAccess > 35000) {
+    if (now - stream.lastAccess > 60000) {
       console.log(`[HLS-REMUX] Stopping inactive stream for ${channel}`);
       try { stream.process.kill(); } catch (_) {}
       stream.alive = false;
