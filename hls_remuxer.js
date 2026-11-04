@@ -43,14 +43,70 @@ function fetchHtml(url, referer) {
   });
 }
 
-async function resolveEmbedSrc(channel) {
-  const res = await fetchHtml(`https://ww0.embedtv.cc/${channel}`, 'https://skyflowmino.space/');
-  if (res.status !== 200) {
-    throw new Error(`embedtv returned status ${res.status} for ${channel}`);
+function getRefererForUrl(url) {
+  if (!url) return 'Referer: https://skyflowmino.space/\r\n';
+  if (url.includes('domhsd.com') || url.includes('streamtp')) {
+    return 'Referer: https://streamtp99a.sbs/\r\n';
   }
-  const m = res.body.match(/const\s+src\s*=\s*"([^"]+)"/);
-  if (!m || !m[1]) throw new Error(`Could not find src in embedtv page for ${channel} (len=${res.body.length})`);
-  return m[1];
+  return 'Referer: https://ww0.embedtv.cc/\r\n';
+}
+
+async function resolveStreamtp(channel) {
+  let streamName = channel.toLowerCase();
+  if (streamName === 'premiere' || streamName === 'premiereclubes' || streamName === 'premiere_clubes') {
+    streamName = 'premiere1';
+  }
+  try {
+    const res = await fetchHtml(`https://streamtp99a.sbs/global1.php?stream=${streamName}`, 'https://skyflowmino.space/');
+    const m = res.body.match(/playbackURL\s*=\s*"([^"]+)"/);
+    if (m && m[1]) {
+      return m[1].replace(/\\\//g, '/');
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function resolveEmbedSrc(channel) {
+  let ch = channel.toLowerCase();
+
+  // 1. Prioritize streamtp for sports/premiere (most reliable CDN with zero geoblock on cloud)
+  if (['premiere', 'premiere1', 'premiere2', 'premiere3', 'premiereclubes', 'sportv', 'sportv1', 'sportv2', 'sportv3', 'espn', 'espn2', 'espn3', 'espn4', 'espn5', 'espn6'].includes(ch)) {
+    const stp = await resolveStreamtp(ch);
+    if (stp) {
+      console.log(`[HLS-REMUX] Streamtp resolved for ${ch}:`, stp);
+      return stp;
+    }
+  }
+
+  // 2. Globo regional feed
+  if (['globorn', 'globo-rn', 'intertv', 'cabugi', 'intertvcabugi', 'globonatal'].includes(ch)) {
+    try {
+      const resTest = await fetchHtml(`https://ww0.embedtv.cc/${ch}`, 'https://skyflowmino.space/');
+      const mTest = resTest.body.match(/const\s+src\s*=\s*["']([^"']+)["']/);
+      if (mTest && mTest[1]) {
+        const headTest = await fetchHtml(mTest[1], 'https://ww0.embedtv.cc/');
+        if (headTest.body.includes('#EXTM3U')) {
+          console.log(`[HLS-REMUX] Direct ${ch} feed active!`);
+          return mTest[1];
+        }
+      }
+    } catch (_) {}
+    console.log(`[HLS-REMUX] ${ch} routed to Rede Globo feed (globorj)...`);
+    ch = 'globorj';
+  }
+
+  // 3. Fallback to embedtv
+  const res = await fetchHtml(`https://ww0.embedtv.cc/${ch}`, 'https://skyflowmino.space/');
+  if (res.status === 200) {
+    const m = res.body.match(/const\s+src\s*=\s*["']([^"']+)["']/);
+    if (m && m[1] && !m[1].includes('error.txt')) return m[1];
+  }
+
+  // 4. Fallback retry streamtp
+  const retryStp = await resolveStreamtp(ch);
+  if (retryStp) return retryStp;
+
+  throw new Error(`Could not resolve active stream source for ${ch}`);
 }
 
 async function getOrStartStream(channel, overrideSrc = null) {
@@ -73,7 +129,7 @@ async function getOrStartStream(channel, overrideSrc = null) {
   let lastStderr = '';
 
   const ff = spawn(ffmpegPath, [
-    '-headers', 'Referer: https://ww0.embedtv.cc/\r\n',
+    '-headers', getRefererForUrl(srcUrl),
     '-i', srcUrl,
     '-c:v', 'copy',
     '-c:a', 'aac',

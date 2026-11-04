@@ -1156,6 +1156,24 @@ function renderSsrPage(tab, sectionTitle, channels, watchInfo, hostHeader) {
 </html>`;
 }
 
+let cachedPlutoSession = null;
+let lastPlutoSessionTime = 0;
+
+async function getPlutoSession() {
+  if (cachedPlutoSession && (Date.now() - lastPlutoSessionTime < 2 * 3600 * 1000)) {
+    return cachedPlutoSession;
+  }
+  const bootUrl = 'https://boot.pluto.tv/v4/start?appName=web&appVersion=8.1.0&deviceType=web&deviceMake=Chrome&deviceModel=web&deviceId=6b7e51c8-8888-4444-9999-123456789abc&clientID=6b7e51c8-8888-4444-9999-123456789abc&clientModelNumber=1.0.0&clientDeviceType=0&deviceVersion=133.0.0';
+  const r = await fetchUrl(bootUrl);
+  const data = JSON.parse(r.body);
+  cachedPlutoSession = {
+    stitcherParams: data.stitcherParams,
+    sessionToken: data.sessionToken
+  };
+  lastPlutoSessionTime = Date.now();
+  return cachedPlutoSession;
+}
+
 const server = http.createServer(async (req, res) => {
   console.log(`[REQ ${new Date().toISOString().slice(11,19)}] ${req.method} ${req.url}`);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1170,6 +1188,23 @@ const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = urlObj.pathname;
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'timer-management-immediate-kodak.trycloudflare.com';
+
+  if (pathname.startsWith('/pluto/')) {
+    const parts = pathname.replace(/^\/pluto\//, '').split('/');
+    const channelId = parts[0].replace(/\.m3u8$/, '');
+    try {
+      const sess = await getPlutoSession();
+      const targetUrl = `https://ipv4.pluto.tv/api/tn/video/playout/v2/stitch/hls/channel/${channelId}/master.m3u8?${sess.stitcherParams}&deviceVersion=133.0.0&jwt=${sess.sessionToken}`;
+      res.writeHead(302, {
+        'Location': targetUrl,
+        'Access-Control-Allow-Origin': '*'
+      });
+      return res.end();
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      return res.end('Error resolving Pluto stream: ' + e.message);
+    }
+  }
 
   if (handleXtreamApi(req, res, urlObj, host)) {
     return;
@@ -1242,6 +1277,18 @@ const server = http.createServer(async (req, res) => {
 
   if (handlePcGamerRoutes(req, res, pathname, ffmpegPath)) {
     return;
+  }
+
+  if (pathname === '/TwitchAOC.zip' || pathname === '/app.zip') {
+    const zipFile = path.join(__dirname, 'TwitchAOC.zip');
+    if (fs.existsSync(zipFile)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': 'attachment; filename="TwitchAOC.zip"',
+        'Access-Control-Allow-Origin': '*'
+      });
+      return fs.createReadStream(zipFile).pipe(res);
+    }
   }
 
   if (pathname === '/playlist.m3u' || pathname === '/lista.m3u' || pathname === '/get.php') {

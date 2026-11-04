@@ -1,0 +1,16 @@
+name: Keep Render Alive 24/7
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render free container from sleeping
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Smart Hub Server
+        run: |
+          echo "Pinging AOC Smart Hub on Render..."
+          curl -s -I -m 15 "https://aoc-saphi-hub.onrender.com/" || true
