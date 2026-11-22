@@ -27,7 +27,7 @@ termux-wake-lock 2>/dev/null || true
 cd "$HOME/aoc-saphi-hub"
 while true; do
   echo "[$(date)] Iniciando Stream Hub Pro v3.0 na porta 8080..." >> "$HOME/stream_hub.log"
-  PORT=8080 TV_WILLIAN_IP=192.168.1.8 TV_MAE_IP=192.168.1.11 node server.js >> "$HOME/stream_hub.log" 2>&1
+  PORT=8080 TV_WILLIAN_IP=192.168.1.6 TV_MAE_IP=192.168.1.11 node server.js >> "$HOME/stream_hub.log" 2>&1
   echo "[$(date)] Servidor encerrou, reiniciando em 3s..." >> "$HOME/stream_hub.log"
   sleep 3
 done

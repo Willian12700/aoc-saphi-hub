@@ -1,7 +1,7 @@
 const http = require('http');
 
 const TV_IPS = {
-  willian: process.env.TV_WILLIAN_IP || '192.168.1.8',
+  willian: process.env.TV_WILLIAN_IP || '192.168.1.6',
   mae: process.env.TV_MAE_IP || '192.168.1.11'
 };
 
