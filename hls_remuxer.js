@@ -29,17 +29,20 @@ const activeStreams = new Map();
 
 function fetchHtml(url, referer) {
   return new Promise((resolve, reject) => {
-    https.get(url, {
+    const req = https.get(url, {
+      rejectUnauthorized: false,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
         'Referer': referer || 'https://skyflowmino.space/'
       },
-      timeout: 8000
+      timeout: 6000
     }, res => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => resolve({ status: res.statusCode, body: data, headers: res.headers }));
-    }).on('error', reject);
+    });
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', reject);
   });
 }
 
@@ -95,20 +98,33 @@ async function resolveEmbedSrc(channel) {
     ch = 'globorj';
   }
 
-  // 3. Fallback to embedtv
-  const res = await fetchHtml(`https://ww0.embedtv.cc/${ch}`, 'https://skyflowmino.space/');
-  if (res.status === 200) {
-    const m = res.body.match(/const\s+src\s*=\s*["']([^"']+)["']/);
-    if (m && m[1] && !m[1].includes('error.txt')) return m[1];
+  // 3. Fallback to embedtv (safe try/catch so expired certs never crash)
+  for (const base of ['https://embedtv.online', 'https://ww0.embedtv.cc']) {
+    try {
+      const res = await fetchHtml(`${base}/${ch}`, `${base}/`);
+      if (res.status === 200) {
+        const m = res.body.match(/const\s+src\s*=\s*["']([^"']+)["']/);
+        if (m && m[1] && !m[1].includes('error.txt')) return m[1];
+      }
+    } catch (_) {}
   }
 
   // 4. Fallback retry streamtp
   const retryStp = await resolveStreamtp(ch);
   if (retryStp) return retryStp;
 
-  // 5. Globo regional & sports fallback
+  // 5. Verified direct CDN fallbacks (Globo / Esportes / TV Aberta)
   if (['globorn', 'globo-rn', 'intertv', 'cabugi', 'globorj', 'globosp', 'globo'].includes(ch)) {
     return 'https://amg00716-globo-amg00716c1-tcl-br-9495.playouts.now.amagi.tv/playlist.m3u8';
+  }
+  if (['cazetv', 'premiere', 'premiere1', 'sportv', 'sportv1', 'sportv2', 'espn'].includes(ch)) {
+    return 'https://cc-gilgbjhgo02wm.akamaized.net/1080p-vtt/index.m3u8';
+  }
+  if (['sbt', 'sbtnews'].includes(ch)) {
+    return 'https://video09.logicahost.com.br/sbtmutum/sbtmutum/playlist.m3u8';
+  }
+  if (['cnnbrasil', 'cnn'].includes(ch)) {
+    return 'https://d25usgadhphvwi.cloudfront.net/hls/main.m3u8';
   }
 
   throw new Error(`Could not resolve active stream source for ${ch}`);

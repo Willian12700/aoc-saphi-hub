@@ -2,13 +2,24 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
-const ffmpegPath = require('ffmpeg-static');
+const { spawn, execSync } = require('child_process');
+let ffmpegPath = 'ffmpeg';
+try {
+  const sysFf = execSync('which ffmpeg 2>/dev/null || where ffmpeg 2>nul').toString().trim().split(/\r?\n/)[0];
+  if (sysFf && fs.existsSync(sysFf)) {
+    ffmpegPath = sysFf;
+  } else {
+    ffmpegPath = require('ffmpeg-static');
+  }
+} catch (_) {
+  try { ffmpegPath = require('ffmpeg-static'); } catch (__) { ffmpegPath = 'ffmpeg'; }
+}
 const { handlePcGamerRoutes, ensureStandbyHls } = require('./pc_gamer');
 const { buildM3u } = require('./playlist_builder');
 const { handleXtreamApi, findStreamById } = require('./xtream_api');
 const { handlePanelRoutes } = require('./panel_handler');
 const { handleHlsRequest } = require('./hls_remuxer');
+const { handleJarvisTvRoutes } = require('./jarvis_tv_bridge');
 
 const PORT = process.env.PORT || 8080;
 const TWITCH_CLIENT_ID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
@@ -1248,6 +1259,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500);
       return res.end(e.message);
     }
+  }
+
+  if (await handleJarvisTvRoutes(req, res, urlObj)) {
+    return;
   }
 
   if (handlePanelRoutes(req, res, urlObj)) {

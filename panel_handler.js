@@ -3,6 +3,7 @@ const path = require('path');
 const { chatService } = require('./chat_service');
 const { goalService } = require('./goal_service');
 const { adTracker } = require('./ad_tracker');
+const { getJarvisAlert } = require('./jarvis_tv_bridge');
 
 const THEME_FILE = path.join(__dirname, 'theme.json');
 const WALLPAPERS_DIR = path.join(__dirname, 'wallpapers');
@@ -645,7 +646,8 @@ function handlePanelRoutes(req, res, urlObj) {
       ...theme,
       targetKey,
       fullWallpaperUrl,
-      goalAlert: goalService.getActiveAlert()
+      goalAlert: goalService.getActiveAlert(),
+      jarvisAlert: getJarvisAlert(targetKey)
     }));
     return true;
   }
